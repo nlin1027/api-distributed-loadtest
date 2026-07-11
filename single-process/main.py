@@ -37,12 +37,17 @@ async def main():
         time_elapsed = time.monotonic() - start
 
     latencies = []
+    errors = 0
     for r in results:
-        if r[2] is None:
-            latencies.append(r[1])
+        status, latency, error = r
+        if error is None and status < 400:
+            latencies.append(latency)
+        else:
+            errors += 1
 
     throughput = len(results) / time_elapsed
     p50, p95, p99 = float(np.percentile(latencies, 50)), float(np.percentile(latencies, 95)), float(np.percentile(latencies, 99))
-    print(throughput, (p50, p95, p99))
+    error_rate = errors / len(results)
+    print(throughput, (p50, p95, p99), error_rate)
 
 asyncio.run(main())
