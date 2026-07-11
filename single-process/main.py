@@ -16,20 +16,24 @@ async def request(session, url):
 async def simulate_user(session, url, duration, results):
     while time.monotonic() < duration:
         result, latency, error = await request(session, url)
-        results.append(f"status: {result} | latency: {latency} | error: {error}")
+        results.append((result, latency, error))
 
 async def main():
     url = "http://localhost:3000/average_list"
     duration = 10
     users = 25
     results = []
+    time_elapsed = 0.0
     timeout = aiohttp.ClientTimeout(total=10)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         tasks = []
         duration = time.monotonic() + duration
+        start = time.monotonic()
         for i in range(users):
             tasks.append(asyncio.create_task(simulate_user(session, url, duration, results)))
         await asyncio.gather(*tasks)
-    print(results)
+        time_elapsed = time.monotonic() - start
+    throughput = len(results) / time_elapsed
+    print(throughput)
 
 asyncio.run(main())
