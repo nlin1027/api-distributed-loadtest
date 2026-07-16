@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 import time
 import numpy as np
+import argparse
 
 async def request(session, url):
     start = time.perf_counter()
@@ -48,13 +49,9 @@ async def simulate_user(session, url, duration, results):
         result, latency, error = await request(session, url)
         results.append((result, latency, error))
 
-async def main():
-    url = "http://localhost:3000/average_list"
-    duration = 10
-    users = 25
+async def run_load_test(users, url, duration):
     results = []
     result_intervals = []
-    time_elapsed = 0.0
     timeout = aiohttp.ClientTimeout(total=10)
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -82,6 +79,22 @@ async def main():
     else:
         p50 = p95 = p99 = 0.0
     error_rate = errors / len(results) if results else 0.0
-    print(throughput, (p50, p95, p99), error_rate)
 
-asyncio.run(main())
+    return {"throughput": throughput, "p50": p50, "p95": p95, "p99": p99, "error rate": error_rate}
+
+def main():
+    url = "http://localhost:3000/average_list"
+    duration = 10
+    users = 25
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("url")
+    parser.add_argument("--users", type=int, default=25)
+    parser.add_argument("--duration", type=int, default=10)
+    args = parser.parse_args()
+
+    stats = asyncio.run(run_load_test(args.users, args.url, args.duration))
+    print(stats)
+
+if __name__ == "__main__":
+    main()
