@@ -4,6 +4,7 @@ import time
 import numpy as np
 import argparse
 
+#sends a single request
 async def request(session, url):
     start = time.perf_counter()
     try:
@@ -14,7 +15,8 @@ async def request(session, url):
     except (aiohttp.ClientError, asyncio.TimeoutError) as e:
         latency = time.perf_counter() - start
         return None, latency, e
-    
+
+#reports the status of the load session
 async def reporter(duration, results, result_intervals):
     requests_last = 0
     while time.monotonic() < duration:
@@ -43,12 +45,13 @@ async def reporter(duration, results, result_intervals):
         requests_last += requests_current
     print(result_intervals)
 
-
+#one "batch" of requests
 async def simulate_user(session, url, duration, results):
     while time.monotonic() < duration:
         result, latency, error = await request(session, url)
         results.append((result, latency, error))
 
+#function to start load session
 async def run_load_test(users, url, duration):
     results = []
     result_intervals = []
@@ -83,10 +86,6 @@ async def run_load_test(users, url, duration):
     return {"throughput": throughput, "p50": p50, "p95": p95, "p99": p99, "error rate": error_rate}
 
 def main():
-    url = "http://localhost:3000/average_list"
-    duration = 10
-    users = 25
-
     parser = argparse.ArgumentParser()
     parser.add_argument("url")
     parser.add_argument("--users", type=int, default=25)
