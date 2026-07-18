@@ -82,4 +82,12 @@ async def run_load_test(users, url, duration):
         p50 = p95 = p99 = 0.0
     error_rate = errors / len(results) if results else 0.0
 
-    return {"throughput": throughput, "p50": p50, "p95": p95, "p99": p99, "error rate": error_rate}
+    return {"throughput": throughput, 
+            "p50": p50, 
+            "p95": p95, 
+            "p99": p99, 
+            "error rate": error_rate,
+            "latencies": latencies,
+            "total requests": len(results),
+            "errors": errors
+           }
