@@ -1,5 +1,6 @@
 import aiohttp
 import asyncio
+import numpy as np
 
 async def dispatch_load(session, worker_url, users, request_url, duration):
     try:
@@ -11,6 +12,35 @@ async def dispatch_load(session, worker_url, users, request_url, duration):
             return await response.json()
     except(aiohttp.ClientError, asyncio.TimeoutError) as e:
         return e
+    
+def aggregate_data(successes, duration):
+    latencies = []
+    total_requests = 0
+    errors = 0
+
+    for response in successes:
+        latencies.extend(response["latencies"])
+        total_requests += response["total requests"]
+        errors += response["errors"]
+    
+    if latencies:
+        p50 = float(np.percentile(latencies, 50))
+        p95 = float(np.percentile(latencies, 95))
+        p99 = float(np.percentile(latencies, 99))
+    else:
+        p50 = p95 = p99 = 0.0
+
+    throughput = total_requests / duration
+    error_rate = errors / total_requests if total_requests else 0.0
+
+    return {"throughput": throughput, 
+            "p50": p50, 
+            "p95": p95, 
+            "p99": p99, 
+            "error rate": error_rate,
+            "total requests": total_requests,
+            "errors": errors
+           }
 
 async def run_distributed_test(request_url, total_users, workers, duration):
     base, remainder = divmod(total_users, len(workers))
@@ -23,9 +53,15 @@ async def run_distributed_test(request_url, total_users, workers, duration):
         responses = await asyncio.gather(*tasks)
 
     successes = [response for response in responses if not isinstance(response, Exception)]
-    failures = [response for response in responses if  isinstance(response, Exception)]
+    failures = [(worker_url, response) for worker_url, response in zip(workers, responses) if  isinstance(response, Exception)]
 
-    print(workers, user_distribution, successes, failures)
+    print(f"{len(successes)} of {len(workers)} responded")
+    for worker_url, error in failures:
+        print(f"{worker_url} FAILED --> {type(error).__name__}: {error}")
+    if not successes:
+        raise RuntimeError("all workers failed, no data to aggregate")
+    
+    return aggregate_data(successes, duration)
 
 async def main():
     request_url = "http://localhost:3000/average_list" #the actual api endpoint we are testing
@@ -33,7 +69,7 @@ async def main():
     workers = ["http://localhost:8081"]
     duration = 5
 
-    await run_distributed_test(request_url, total_users, workers, duration)
+    print(await run_distributed_test(request_url, total_users, workers, duration))
 
 if __name__ == "__main__":
     asyncio.run(main())
