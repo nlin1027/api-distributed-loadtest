@@ -1,0 +1,11 @@
+services:
+  worker1:
+    build: { context: ., dockerfile: Dockerfile.worker }
+  worker2:
+    build: { context: ., dockerfile: Dockerfile.worker }
+  worker3:
+    build: { context: ., dockerfile: Dockerfile.worker }
+
+  controller:
+    build: { context: ., dockerfile: Dockerfile.controller }
+    depends_on: [worker1, worker2, worker3]
