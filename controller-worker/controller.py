@@ -1,6 +1,7 @@
 import aiohttp
 import asyncio
 import numpy as np
+from scaler import discover_workers
 
 async def dispatch_load(session, worker_url, users, request_url, duration):
     try:
@@ -66,7 +67,7 @@ async def run_distributed_test(request_url, total_users, workers, duration):
 async def main():
     request_url = "http://host.docker.internal:3000/average_list" #the actual api endpoint we are testing
     total_users = 100
-    workers = ["http://worker1:8080", "http://worker2:8080", "http://worker3:8080"]
+    workers = discover_workers()
     duration = 20
 
     print(await run_distributed_test(request_url, total_users, workers, duration))

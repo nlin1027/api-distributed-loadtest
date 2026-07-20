@@ -1,19 +1,21 @@
 services:
-  worker1:
+  worker:
     build: { context: ., dockerfile: Dockerfile.worker }
-  worker2:
-    build: { context: ., dockerfile: Dockerfile.worker }
-  worker3:
-    build: { context: ., dockerfile: Dockerfile.worker }
+    labels:
+      - "role=worker"
 
   controller:
     build: { context: ., dockerfile: Dockerfile.controller }
-    depends_on: [worker1, worker2, worker3]
+    depends_on: [worker]
+    volumes:
+      - ./targets:/etc/prometheus/targets
+      - /var/run/docker.sock:/var/run/docker.sock
 
   prometheus:
     image: prom/prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./targets:/etc/prometheus/targets
     ports:
       - "9090:9090"
 

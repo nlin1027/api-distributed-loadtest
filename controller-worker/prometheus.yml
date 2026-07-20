@@ -3,5 +3,7 @@ global:
 
 scrape_configs:
   - job_name: "workers"
-    static_configs:
-      - targets: ["worker1:8080", "worker2:8080", "worker3:8080"]
+    file_sd_configs:
+      - files:
+          - "/etc/prometheus/targets/workers.json"
+        refresh_interval: 5s
