@@ -67,7 +67,7 @@ async def main():
     request_url = "http://host.docker.internal:3000/average_list" #the actual api endpoint we are testing
     total_users = 100
     workers = ["http://worker1:8080", "http://worker2:8080", "http://worker3:8080"]
-    duration = 5
+    duration = 20
 
     print(await run_distributed_test(request_url, total_users, workers, duration))
 

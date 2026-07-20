@@ -1,2 +1,4 @@
 aiohttp
 numpy
+psutil
+prometheus_client

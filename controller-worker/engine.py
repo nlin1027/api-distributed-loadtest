@@ -2,6 +2,15 @@ import aiohttp
 import asyncio
 import time
 import numpy as np
+import psutil
+from prometheus_client import Gauge
+
+active_users = Gauge("worker_active_users", "Virtual users currently assigned to this worker")
+cpu_percent = Gauge("worker_cpu_percent", "CPU usage percent of this worker process")
+target_p50 = Gauge("target_latency_p50_seconds", "Target p50 latency, last reporting interval")
+target_p95 = Gauge("target_latency_p95_seconds", "Target p95 latency, last reporting interval")
+target_p99 = Gauge("target_latency_p99_seconds", "Target p99 latency, last reporting interval")
+target_error_rate = Gauge("target_error_rate", "Target error rate, last reporting interval")
 
 #sends a single request
 async def request(session, url):
@@ -40,6 +49,12 @@ async def reporter(duration, results, result_intervals):
 
         interval_error_rate = errors / requests_current if results[requests_last:] else 0
 
+        target_p50.set(interval_p50)
+        target_p95.set(interval_p95)
+        target_p99.set(interval_p99)
+        target_error_rate.set(interval_error_rate)
+        cpu_percent.set(psutil.cpu_percent())
+
         result_intervals.append((requests_current, interval_p50, interval_p95, interval_p99, interval_error_rate))
         requests_last += requests_current
     print(result_intervals)
@@ -56,6 +71,8 @@ async def run_load_test(users, url, duration):
     result_intervals = []
     timeout = aiohttp.ClientTimeout(total=10)
 
+    active_users.set(users)
+
     async with aiohttp.ClientSession(timeout=timeout) as session:
         tasks = []
         duration = time.monotonic() + duration
@@ -65,6 +82,8 @@ async def run_load_test(users, url, duration):
             tasks.append(asyncio.create_task(simulate_user(session, url, duration, results)))
         await asyncio.gather(*tasks)
         time_elapsed = time.monotonic() - start
+
+    active_users.set(0)
 
     latencies = []
     errors = 0
