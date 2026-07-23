@@ -2,7 +2,7 @@ import aiohttp
 import asyncio
 import math
 import numpy as np
-from scaler import discover_workers, boot_up_workers
+from scaler import discover_workers_container, boot_up_workers
 
 async def dispatch_load(session, worker_url, users, request_url, duration):
     try:

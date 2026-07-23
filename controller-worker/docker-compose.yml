@@ -4,12 +4,19 @@ services:
     labels:
       - "role=worker"
 
-  controller:
-    build: { context: ., dockerfile: Dockerfile.controller }
+  scaler:
+    build: { context: ., dockerfile: Dockerfile.scaler }
     depends_on: [worker]
     volumes:
-      - ./targets:/etc/prometheus/targets
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./targets:/etc/prometheus/targets
+
+  controller:
+    build: { context: ., dockerfile: Dockerfile.controller }
+    depends_on: [worker, scaler]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./targets:/etc/prometheus/targets
 
   prometheus:
     image: prom/prometheus
