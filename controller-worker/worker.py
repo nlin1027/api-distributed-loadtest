@@ -4,7 +4,7 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 async def handle_run(request):
     body = await request.json()
-    stats = await run_load_test(body["users"], body["url"],body["duration"])
+    stats = await run_load_test(body["test_id"], body["users"], body["url"],body["duration"])
     return web.json_response(stats)
 
 async def handle_metrics(request):

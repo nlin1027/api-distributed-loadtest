@@ -1,4 +1,4 @@
-from scaler import discover_workers_container, get_worker_metrics
+from scaler import discover_workers_container, get_worker_metrics, sync_prometheus_targets
 import time
 
 POLL_INTERVAL = 5
@@ -27,6 +27,8 @@ def main():
             c.remove()
             idle_since.pop(c.id, None)
             print(f"reaped idle worker {c.name}")
+        
+        if reapable[:surplus]: sync_prometheus_targets()
 
         time.sleep(POLL_INTERVAL)
 

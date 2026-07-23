@@ -3,12 +3,13 @@ import asyncio
 import math
 import numpy as np
 from scaler import discover_workers_container, boot_up_workers
+import uuid
 
-async def dispatch_load(session, worker_url, users, request_url, duration):
+async def dispatch_load(session, worker_url, users, request_url, duration, test_id):
     try:
         async with session.post(
             f"{worker_url}/run",
-            json = {"users": users, "url": request_url, "duration": duration},
+            json = {"test_id": test_id, "users": users, "url": request_url, "duration": duration},
             timeout = aiohttp.ClientTimeout(total = duration + 10)
         ) as response: 
             return await response.json()
@@ -47,11 +48,12 @@ def aggregate_data(successes, duration):
 async def run_distributed_test(request_url, total_users, workers, duration):
     base, remainder = divmod(total_users, len(workers))
     user_distribution = [base + 1 if i < remainder else base for i in range(len(workers))]
+    test_id = str(uuid.uuid4())
 
     async with aiohttp.ClientSession() as session:
         tasks = []
         for worker_url, users in zip(workers, user_distribution):
-            tasks.append(dispatch_load(session, worker_url, users, request_url, duration))
+            tasks.append(dispatch_load(session, worker_url, users, request_url, duration, test_id))
         responses = await asyncio.gather(*tasks)
 
     successes = [response for response in responses if not isinstance(response, Exception)]

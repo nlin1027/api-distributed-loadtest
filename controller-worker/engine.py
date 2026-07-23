@@ -12,6 +12,9 @@ target_p95 = Gauge("target_latency_p95_seconds", "Target p95 latency, last repor
 target_p99 = Gauge("target_latency_p99_seconds", "Target p99 latency, last reporting interval")
 target_error_rate = Gauge("target_error_rate", "Target error rate, last reporting interval")
 
+def update_active_users():
+    active_users.set(sum(active_users_set.values()))
+
 #sends a single request
 async def request(session, url):
     start = time.perf_counter()
@@ -65,13 +68,16 @@ async def simulate_user(session, url, duration, results):
         result, latency, error = await request(session, url)
         results.append((result, latency, error))
 
+active_users_set = {}
+
 #function to start load session
-async def run_load_test(users, url, duration):
+async def run_load_test(test_id, users, url, duration):
     results = []
     result_intervals = []
     timeout = aiohttp.ClientTimeout(total=10)
 
-    active_users.set(users)
+    active_users_set[test_id] = users
+    update_active_users()
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
         tasks = []
@@ -83,7 +89,8 @@ async def run_load_test(users, url, duration):
         await asyncio.gather(*tasks)
         time_elapsed = time.monotonic() - start
 
-    active_users.set(0)
+    del active_users_set[test_id]
+    update_active_users()
 
     latencies = []
     errors = 0
