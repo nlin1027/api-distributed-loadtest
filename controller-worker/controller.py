@@ -1,9 +1,14 @@
 import aiohttp
 import asyncio
+from aiohttp import web
 import math
 import numpy as np
 from scaler import discover_workers_container, boot_up_workers
 import uuid
+
+tests = {}
+scale_lock = asyncio.Lock()
+MAX_USERS_PER_WORKER = 30
 
 async def dispatch_load(session, worker_url, users, request_url, duration, test_id):
     try:
@@ -45,10 +50,9 @@ def aggregate_data(successes, duration):
             "errors": errors
            }
 
-async def run_distributed_test(request_url, total_users, workers, duration):
+async def run_distributed_test(test_id, request_url, total_users, workers, duration):
     base, remainder = divmod(total_users, len(workers))
     user_distribution = [base + 1 if i < remainder else base for i in range(len(workers))]
-    test_id = str(uuid.uuid4())
 
     async with aiohttp.ClientSession() as session:
         tasks = []
@@ -67,14 +71,45 @@ async def run_distributed_test(request_url, total_users, workers, duration):
     
     return aggregate_data(successes, duration)
 
-async def main():
-    request_url = "http://host.docker.internal:3000/average_list" #the actual api endpoint we are testing
-    total_users = 100
-    max_users_per_worker = 30
-    workers = boot_up_workers(total_users, max_users_per_worker)
-    duration = 20
+async def execute_test(test_id, request_url, total_users, duration):
+    try:
+        async with scale_lock:
+            loop = asyncio.get_running_loop()
+            workers = await loop.run_in_executor(None, boot_up_workers, total_users, MAX_USERS_PER_WORKER)
 
-    print(await run_distributed_test(request_url, total_users, workers, duration))
+        result = await run_distributed_test(test_id, request_url, total_users, workers, duration)
+        tests[test_id] = {"status": "complete", "result": result}
+    except Exception as e:
+        tests[test_id] = {"status": "failed", "error": str(e)}
+
+async def handle_submit_test(request):
+    body = await request.json()
+
+    try:
+        request_url = body["url"]
+        total_users = body["total_users"]
+        duration = body["duration"]
+    except KeyError as e:
+        return web.json_response({"error": f"missing field {e}"}, status=400)
+
+    test_id = str(uuid.uuid4())
+    tests[test_id] = {"status": "running"}
+    asyncio.create_task(execute_test(test_id, request_url, total_users, duration))
+
+    return web.json_response({"test_id": test_id, "status": "running"}, status=202)
+
+async def handle_get_test(request):
+    test_id = request.match_info["test_id"]
+    test = tests.get(test_id)
+
+    if test is None:
+        return web.json_response({"status": "test not found"}, status=404)
+
+    return web.json_response({"test_id": test_id, **test})
+
+app = web.Application()
+app.router.add_post("/tests", handle_submit_test)
+app.router.add_get("/tests/{test_id}", handle_get_test)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    web.run_app(app, port=8000)

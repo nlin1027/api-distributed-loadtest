@@ -17,6 +17,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./targets:/etc/prometheus/targets
+    ports:
+      - "8000:8000"
 
   prometheus:
     image: prom/prometheus
