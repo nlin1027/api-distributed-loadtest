@@ -76,6 +76,8 @@ async def execute_test(test_id, request_url, total_users, duration):
             loop = asyncio.get_running_loop()
             workers, user_distribution = await loop.run_in_executor(None, boot_up_workers, total_users, MAX_USERS_PER_WORKER)
 
+        tests[test_id]["workers"] = workers
+
         result = await run_distributed_test(test_id, request_url, total_users, workers, duration, user_distribution)
         tests[test_id] = {"status": "complete", "result": result}
     except Exception as e:
@@ -106,9 +108,17 @@ async def handle_get_test(request):
 
     return web.json_response({"test_id": test_id, **test})
 
+async def handle_get_assignments(request):
+    active_workers = set()
+    for test in tests.values():
+        if test.get("status") == "running":
+            active_workers.update(test.get("workers", []))
+    return web.json_response({"active_workers": list(active_workers)})
+
 app = web.Application()
 app.router.add_post("/tests", handle_submit_test)
 app.router.add_get("/tests/{test_id}", handle_get_test)
+app.router.add_get("/assignments", handle_get_assignments)
 
 if __name__ == "__main__":
     web.run_app(app, port=8000)
