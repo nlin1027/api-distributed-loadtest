@@ -1,7 +1,15 @@
 do not edit the project or any files on your own. you may only edit the project if i directly ask you to. you may also ask for permission but it is ultimately up to my own (the prompter's) discretion.
 
+When giving me curl commands to run in my PowerShell terminal, format them so I can paste and run directly:
+- Use `curl.exe` explicitly, never bare `curl` (it's aliased to Invoke-WebRequest, which has different flags).
+- Keep the whole command on one line — no `\` line continuation (that's bash-only).
+- For JSON bodies with `-d`, wrap the JSON in single quotes AND escape every inner double-quote with `\"`,
+  e.g. `-d '{\"key\":\"value\"}'`. This is required due to how Windows passes arguments to native
+  executables (embedded `"` gets stripped otherwise) — plain single-quoted JSON without escaping will break.
+
 This is a project meant to teach me system design. Below is the word-for-word description from a YouTube video that I got the idea from.
 "A distributed load testing platform. You should be thinking about things like spinning up a test fleet using containers, automatically scaling up and down as you need more load for your tests, and monitoring both your own testing fleet plus the application that's actually under load. (Containers, Workers, Autoscaling, Metrics)"
+
 Here is a breakdown of the goals and vision of the project:
 Project vision: Build a distributed load testing platform — not just a tool that generates traffic, but a system with a fleet of coordinated worker processes (deployed via containers), each capable of generating load against a target API, orchestrated by a controller, observable through metrics on both the fleet and the target, able to automatically scale the fleet to match what a given test demands, and eventually capable of generating traffic from genuinely distinct network origins to simulate real multi-user, multi-IP traffic. This is a project meant to teach system design — each stage should be a self-contained project sitting on top of the last, with a concrete reason to exist rather than being infra for its own sake.
 

@@ -50,13 +50,12 @@ def aggregate_data(successes, duration):
             "errors": errors
            }
 
-async def run_distributed_test(test_id, request_url, total_users, workers, duration):
-    base, remainder = divmod(total_users, len(workers))
-    user_distribution = [base + 1 if i < remainder else base for i in range(len(workers))]
+async def run_distributed_test(test_id, request_url, total_users, workers, duration, user_distribution):
+    dispatched = [(worker_url, users) for worker_url, users in zip(workers, user_distribution) if users > 0]
 
     async with aiohttp.ClientSession() as session:
         tasks = []
-        for worker_url, users in zip(workers, user_distribution):
+        for worker_url, users in dispatched:
             tasks.append(dispatch_load(session, worker_url, users, request_url, duration, test_id))
         responses = await asyncio.gather(*tasks)
 
@@ -75,9 +74,9 @@ async def execute_test(test_id, request_url, total_users, duration):
     try:
         async with scale_lock:
             loop = asyncio.get_running_loop()
-            workers = await loop.run_in_executor(None, boot_up_workers, total_users, MAX_USERS_PER_WORKER)
+            workers, user_distribution = await loop.run_in_executor(None, boot_up_workers, total_users, MAX_USERS_PER_WORKER)
 
-        result = await run_distributed_test(test_id, request_url, total_users, workers, duration)
+        result = await run_distributed_test(test_id, request_url, total_users, workers, duration, user_distribution)
         tests[test_id] = {"status": "complete", "result": result}
     except Exception as e:
         tests[test_id] = {"status": "failed", "error": str(e)}

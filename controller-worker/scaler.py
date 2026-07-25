@@ -31,10 +31,15 @@ def sync_prometheus_targets():
     with open(PROMETHEUS_TARGETS_PATH, "w") as f:
         json.dump(targets, f)
 
+def get_worker_headroom(worker_url, max_users_per_worker):
+    active = get_worker_metrics(worker_url, "worker_active_users") or 0
+    return max(0, max_users_per_worker - active)
+
 def boot_up_workers(total_users, max_users_per_worker):
-    current_workers = len(discover_workers_url())
-    needed_workers = math.ceil(total_users / max_users_per_worker)
-    workers_to_create = needed_workers - current_workers if needed_workers > current_workers else 0
+    workers = discover_workers_url()
+    headroom = {w: get_worker_headroom(w, max_users_per_worker) for w in workers}
+    shortfall = max(0, total_users - sum(headroom.values()))
+    workers_to_create = math.ceil(shortfall / max_users_per_worker) if shortfall else 0
 
     for i in range(workers_to_create):
         docker_client.containers.run(
@@ -50,7 +55,15 @@ def boot_up_workers(total_users, max_users_per_worker):
 
     if workers_to_create: sync_prometheus_targets()
 
-    return workers
+    remaining = total_users
+    user_distribution = []
+    for worker in workers:
+        available = headroom.get(worker, max_users_per_worker)
+        users_to_assign = min(available, remaining)
+        user_distribution.append(users_to_assign)
+        remaining -= users_to_assign
+
+    return workers, user_distribution
 
 def get_worker_metrics(worker_url, metric):
     try:
@@ -62,4 +75,3 @@ def get_worker_metrics(worker_url, metric):
         if family.name == metric:
             return family.samples[0].value if family.samples else 0
     return None
-        
