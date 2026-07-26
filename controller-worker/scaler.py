@@ -4,10 +4,13 @@ import time
 from prometheus_client.parser import text_string_to_metric_families
 import urllib.request
 import urllib.error
+import urllib.parse
 import json
 
 docker_client = docker.from_env()
 PROMETHEUS_TARGETS_PATH = "/etc/prometheus/targets/workers.json"
+PROMETHEUS_URL = "http://prometheus:9090"
+CPU_THRESHOLD = 80
 
 def discover_workers_container():
     return docker_client.containers.list(filters={"label": "role=worker"})
@@ -31,13 +34,33 @@ def sync_prometheus_targets():
     with open(PROMETHEUS_TARGETS_PATH, "w") as f:
         json.dump(targets, f)
 
-def get_worker_headroom(worker_url, max_users_per_worker):
+def query_prometheus(promql):
+    query = urllib.parse.urlencode({"query": promql})
+    try:
+        body = urllib.request.urlopen(f"{PROMETHEUS_URL}/api/v1/query?{query}", timeout=2).read().decode()
+    except (urllib.error.URLError, ConnectionError):
+        return None
+
+    result = json.loads(body)["data"]["result"]
+    return {r["metric"]["instance"]: float(r["value"][1]) for r in result}
+
+def avg_cpu_by_worker(window="2m"):
+    result = query_prometheus(f"avg_over_time(worker_cpu_percent[{window}])")
+    if result is None:
+        return {}
+    return {f"http://{instance}": value for instance, value in result.items()}
+
+def get_worker_headroom(worker_url, max_users_per_worker, avg_cpu=None):
     active = get_worker_metrics(worker_url, "worker_active_users") or 0
-    return max(0, max_users_per_worker - active)
+    headroom = max(0, max_users_per_worker - active)
+    if avg_cpu is not None and avg_cpu >= CPU_THRESHOLD:
+        return 0
+    return headroom
 
 def boot_up_workers(total_users, max_users_per_worker):
     workers = discover_workers_url()
-    headroom = {w: get_worker_headroom(w, max_users_per_worker) for w in workers}
+    avg_cpu = avg_cpu_by_worker()
+    headroom = {w: get_worker_headroom(w, max_users_per_worker, avg_cpu.get(w)) for w in workers}
     shortfall = max(0, total_users - sum(headroom.values()))
     workers_to_create = math.ceil(shortfall / max_users_per_worker) if shortfall else 0
 
